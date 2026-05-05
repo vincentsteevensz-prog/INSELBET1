@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Trophy, Flame, Clock, Wallet, ChevronRight, Zap, BarChart3, ArrowUpRight, Activity, Shield, Lock, Headphones, CreditCard, Search, RefreshCw, AlertCircle, Loader2, LogOut, User, Eye, EyeOff, Settings, Plus, Minus, Ban, ShieldCheck, Mail } from "lucide-react";
+import { Trophy, Flame, Clock, Wallet, ChevronRight, Zap, BarChart3, ArrowUpRight, Activity, Search, RefreshCw, AlertCircle, Loader2, LogOut, Eye, EyeOff, Plus, Minus, Ban, ShieldCheck, X, ChevronDown, ChevronUp, Receipt, Trash2 } from "lucide-react";
 
 // ================================================================
 // JOUW Cloudflare Worker URL
@@ -35,6 +35,7 @@ const isLive = (iso) => {
 
 const normalizeMatch = (apiMatch) => {
   let options = [];
+  let bookmakerTitle = null;
   for (const bm of apiMatch.bookmakers || []) {
     const h2h = bm.markets?.find((m) => m.key === "h2h");
     if (h2h && h2h.outcomes?.length >= 2) {
@@ -46,6 +47,7 @@ const normalizeMatch = (apiMatch) => {
         team: o.name,
         odd: o.price,
       }));
+      bookmakerTitle = bm.title;
       break;
     }
   }
@@ -57,6 +59,7 @@ const normalizeMatch = (apiMatch) => {
     away_team: apiMatch.away_team,
     commence_time: apiMatch.commence_time,
     options,
+    bookmaker: bookmakerTitle,
     isLive: isLive(apiMatch.commence_time),
   };
 };
@@ -112,7 +115,6 @@ const api = {
   },
 };
 
-// === HOOKS ===
 function useMatches() {
   const [data, setData] = useState({ matches: [], fetched_at: null });
   const [status, setStatus] = useState("loading");
@@ -142,12 +144,40 @@ function useMatches() {
   return { ...data, status, error, refresh: fetchMatches };
 }
 
+// === BET SLIP HOOK ===
+function useBetSlip() {
+  const [selections, setSelections] = useState([]);
+
+  const addSelection = useCallback((sel) => {
+    setSelections((prev) => {
+      // Voorkom dezelfde selectie dubbel
+      if (prev.find((s) => s.id === sel.id)) return prev;
+      // Maar 1 selectie per match toegestaan
+      const filtered = prev.filter((s) => s.matchId !== sel.matchId);
+      return [...filtered, sel];
+    });
+  }, []);
+
+  const removeSelection = useCallback((id) => {
+    setSelections((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
+  const clearSlip = useCallback(() => {
+    setSelections([]);
+  }, []);
+
+  const totalOdd = useMemo(() => {
+    return selections.reduce((acc, s) => acc * s.odd, 1);
+  }, [selections]);
+
+  return { selections, addSelection, removeSelection, clearSlip, totalOdd };
+}
+
 // === MAIN APP ===
 export default function App() {
   const [user, setUser] = useState(null);
-  const [authStatus, setAuthStatus] = useState("checking"); // checking | loggedIn | loggedOut
+  const [authStatus, setAuthStatus] = useState("checking");
 
-  // Check token on mount
   useEffect(() => {
     (async () => {
       const token = api.getToken();
@@ -205,7 +235,7 @@ export default function App() {
 // AUTH PAGE
 // ============================================================
 function AuthPage({ onSuccess }) {
-  const [mode, setMode] = useState("login"); // login | register
+  const [mode, setMode] = useState("login");
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 selection:bg-cyan-400 selection:text-zinc-950" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <style>{`
@@ -234,7 +264,6 @@ function AuthPage({ onSuccess }) {
               </div>
               <span className="display-font text-4xl text-cyan-400 tracking-wide">INSELBET</span>
             </div>
-            <p className="text-zinc-400 text-sm mt-2">De beste quotes voor elke wedstrijd</p>
           </div>
 
           <div className="bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-2xl p-6">
@@ -251,10 +280,6 @@ function AuthPage({ onSuccess }) {
 
             {mode === "login" ? <LoginForm onSuccess={onSuccess} /> : <RegisterForm onSuccess={onSuccess} />}
           </div>
-
-          <p className="text-center text-xs text-zinc-600 mt-6 mono-font">
-            Speel bewust. 18+
-          </p>
         </div>
       </div>
     </div>
@@ -369,54 +394,23 @@ function RegisterForm({ onSuccess }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs mono-font text-zinc-500 mb-1.5 tracking-wider">VOORNAAM</label>
-          <input
-            type="text"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-md text-zinc-100 focus:border-cyan-400 focus:outline-none transition"
-            placeholder="Jan"
-            required
-          />
+          <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-md text-zinc-100 focus:border-cyan-400 focus:outline-none transition" placeholder="Jan" required />
         </div>
         <div>
           <label className="block text-xs mono-font text-zinc-500 mb-1.5 tracking-wider">ACHTERNAAM</label>
-          <input
-            type="text"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-md text-zinc-100 focus:border-cyan-400 focus:outline-none transition"
-            placeholder="Jansen"
-            required
-          />
+          <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-md text-zinc-100 focus:border-cyan-400 focus:outline-none transition" placeholder="Jansen" required />
         </div>
       </div>
 
       <div>
         <label className="block text-xs mono-font text-zinc-500 mb-1.5 tracking-wider">E-MAILADRES</label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-800 rounded-md text-zinc-100 focus:border-cyan-400 focus:outline-none transition"
-          placeholder="naam@example.com"
-          autoComplete="email"
-          required
-        />
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-800 rounded-md text-zinc-100 focus:border-cyan-400 focus:outline-none transition" placeholder="naam@example.com" autoComplete="email" required />
       </div>
 
       <div>
         <label className="block text-xs mono-font text-zinc-500 mb-1.5 tracking-wider">WACHTWOORD</label>
         <div className="relative">
-          <input
-            type={showPw ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-2.5 pr-10 bg-zinc-950 border border-zinc-800 rounded-md text-zinc-100 focus:border-cyan-400 focus:outline-none transition"
-            placeholder="Min. 6 tekens"
-            autoComplete="new-password"
-            required
-            minLength={6}
-          />
+          <input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2.5 pr-10 bg-zinc-950 border border-zinc-800 rounded-md text-zinc-100 focus:border-cyan-400 focus:outline-none transition" placeholder="Min. 6 tekens" autoComplete="new-password" required minLength={6} />
           <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
             {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
@@ -430,28 +424,20 @@ function RegisterForm({ onSuccess }) {
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={busy}
-        className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-zinc-950 font-bold rounded-md transition shadow-lg shadow-cyan-500/20"
-      >
+      <button type="submit" disabled={busy} className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-zinc-950 font-bold rounded-md transition shadow-lg shadow-cyan-500/20">
         {busy ? <Loader2 className="animate-spin mx-auto" size={18} /> : "ACCOUNT AANMAKEN"}
       </button>
-
-      <p className="text-xs text-zinc-500 text-center">
-        Door te registreren accepteer je onze algemene voorwaarden.
-      </p>
     </form>
   );
 }
 
 // ============================================================
-// MAIN APP (na inloggen)
+// MAIN APP
 // ============================================================
 function MainApp({ user, onLogout, refreshUser }) {
   const [view, setView] = useState("home");
-  const [selectedMatch, setSelectedMatch] = useState(null);
   const matchesData = useMatches();
+  const betSlip = useBetSlip();
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 selection:bg-cyan-400 selection:text-zinc-950" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -461,9 +447,13 @@ function MainApp({ user, onLogout, refreshUser }) {
         .mono-font { font-family: 'JetBrains Mono', monospace; }
         @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         @keyframes fade-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes float-orb { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(40px,-30px) scale(1.05); } 66% { transform: translate(-30px,30px) scale(0.95); } }
         @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        @keyframes pop-in { 0% { transform: scale(0.95); opacity: 0; } 50% { transform: scale(1.02); } 100% { transform: scale(1); opacity: 1; } }
         .animate-fade-up { animation: fade-up 0.5s ease-out backwards; }
+        .animate-slide-up { animation: slide-up 0.3s ease-out; }
+        .animate-pop { animation: pop-in 0.3s ease-out; }
         .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
         .grid-bg {
           background-image: 
@@ -479,17 +469,17 @@ function MainApp({ user, onLogout, refreshUser }) {
 
       <Navbar view={view} setView={setView} dataStatus={matchesData.status} user={user} onLogout={onLogout} />
 
-      <main>
-        {view === "home" && <HomePage setView={setView} setSelectedMatch={setSelectedMatch} matchesData={matchesData} user={user} />}
-        {view === "matches" && <MatchesPage setSelectedMatch={setSelectedMatch} matchesData={matchesData} />}
-        {view === "live" && <LivePage setSelectedMatch={setSelectedMatch} matchesData={matchesData} />}
+      <main className="pb-32">
+        {view === "home" && <HomePage setView={setView} matchesData={matchesData} user={user} betSlip={betSlip} />}
+        {view === "matches" && <MatchesPage matchesData={matchesData} betSlip={betSlip} />}
+        {view === "live" && <LivePage matchesData={matchesData} betSlip={betSlip} />}
         {view === "mybets" && <MyBetsPage />}
         {view === "admin" && user.is_admin && <AdminPage refreshCurrentUser={refreshUser} currentUser={user} />}
       </main>
 
       <Footer />
 
-      {selectedMatch && <BetModal match={selectedMatch} onClose={() => setSelectedMatch(null)} />}
+      <BetSlip betSlip={betSlip} user={user} refreshUser={refreshUser} />
     </div>
   );
 }
@@ -635,19 +625,18 @@ function LiveTicker({ matches }) {
   );
 }
 
-function HomePage({ setView, setSelectedMatch, matchesData, user }) {
+function HomePage({ setView, matchesData, user, betSlip }) {
   return (
     <>
       <LiveTicker matches={matchesData.matches} />
-      <Hero setView={setView} matchesData={matchesData} setSelectedMatch={setSelectedMatch} user={user} />
-      <FeaturedMatches setSelectedMatch={setSelectedMatch} matchesData={matchesData} />
-      <UpcomingSection setSelectedMatch={setSelectedMatch} matchesData={matchesData} />
-      <TrustSection />
+      <Hero setView={setView} matchesData={matchesData} user={user} betSlip={betSlip} />
+      <FeaturedMatches matchesData={matchesData} betSlip={betSlip} />
+      <UpcomingSection matchesData={matchesData} betSlip={betSlip} />
     </>
   );
 }
 
-function Hero({ setView, matchesData, setSelectedMatch, user }) {
+function Hero({ setView, matchesData, user, betSlip }) {
   const featuredMatch = useMemo(() => {
     const live = matchesData.matches.find((m) => m.isLive);
     if (live) return live;
@@ -676,7 +665,7 @@ function Hero({ setView, matchesData, setSelectedMatch, user }) {
             </h1>
 
             <p className="text-lg text-zinc-400 max-w-lg mb-8 leading-relaxed">
-              Wed op de top voetbalcompetities van Europa. Scherpe odds, snelle uitbetalingen, en de meest complete live betting ervaring in de markt.
+              Combineer meerdere selecties in één weddenschap voor hogere quotes en grotere uitbetalingen.
             </p>
 
             <div className="flex flex-wrap gap-3">
@@ -707,11 +696,6 @@ function Hero({ setView, matchesData, setSelectedMatch, user }) {
                 <div className="display-font text-3xl text-cyan-400">{fmtMoney(user.balance)}</div>
                 <div className="text-xs mono-font text-zinc-500 tracking-wider">JOUW SALDO</div>
               </div>
-              <div className="w-px h-10 bg-zinc-800" />
-              <div>
-                <div className="display-font text-3xl text-cyan-400">21</div>
-                <div className="text-xs mono-font text-zinc-500 tracking-wider">COMPETITIES</div>
-              </div>
             </div>
           </div>
 
@@ -720,7 +704,7 @@ function Hero({ setView, matchesData, setSelectedMatch, user }) {
               <div className="absolute -inset-1 bg-gradient-to-br from-cyan-400/30 via-cyan-500/10 to-transparent rounded-2xl blur-xl" />
               {matchesData.status === "loading" && <FeaturedSkeleton />}
               {matchesData.status === "ok" && featuredMatch && (
-                <FeaturedMatchHero match={featuredMatch} onClick={() => setSelectedMatch(featuredMatch)} />
+                <FeaturedMatchHero match={featuredMatch} betSlip={betSlip} />
               )}
               {matchesData.status === "ok" && !featuredMatch && (
                 <div className="relative bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-2xl p-8 text-center">
@@ -737,7 +721,19 @@ function Hero({ setView, matchesData, setSelectedMatch, user }) {
   );
 }
 
-function FeaturedMatchHero({ match, onClick }) {
+function FeaturedMatchHero({ match, betSlip }) {
+  const handleAdd = (opt) => {
+    betSlip.addSelection({
+      id: `${match.id}-${opt.label}`,
+      matchId: match.id,
+      matchName: `${match.home_team} - ${match.away_team}`,
+      league: getLeagueName(match.sport_key),
+      selection: opt.label === "Thuis" ? match.home_team : opt.label === "Uit" ? match.away_team : "Gelijkspel",
+      odd: opt.odd,
+    });
+  };
+  const isInSlip = (label) => betSlip.selections.some((s) => s.id === `${match.id}-${label}`);
+
   return (
     <div className="relative bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-2xl p-6">
       <div className="flex items-center justify-between mb-5">
@@ -768,19 +764,24 @@ function FeaturedMatchHero({ match, onClick }) {
         </div>
       </div>
 
-      <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: `repeat(${match.options.length}, 1fr)` }}>
-        {match.options.map((opt, i) => (
-          <button key={i} onClick={onClick} className="p-3 bg-zinc-950 hover:bg-cyan-400 hover:text-zinc-950 border border-zinc-800 hover:border-cyan-400 rounded-lg transition">
-            <div className="text-[11px] text-zinc-500 truncate">{opt.label}</div>
-            <div className="mono-font font-bold text-lg">{opt.odd.toFixed(2)}</div>
-          </button>
-        ))}
-      </div>
-
-      <div className="pt-4 border-t border-zinc-800">
-        <button onClick={onClick} className="w-full text-cyan-400 hover:text-cyan-300 mono-font font-semibold text-xs flex items-center justify-center gap-1">
-          BEKIJK ALLE MARKTEN <ChevronRight size={12} />
-        </button>
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${match.options.length}, 1fr)` }}>
+        {match.options.map((opt, i) => {
+          const selected = isInSlip(opt.label);
+          return (
+            <button
+              key={i}
+              onClick={() => handleAdd(opt)}
+              className={`p-3 rounded-lg border transition ${
+                selected
+                  ? "bg-cyan-400 text-zinc-950 border-cyan-400"
+                  : "bg-zinc-950 hover:bg-cyan-400 hover:text-zinc-950 border-zinc-800 hover:border-cyan-400"
+              }`}
+            >
+              <div className={`text-[11px] truncate ${selected ? "text-zinc-700" : "text-zinc-500"}`}>{opt.label}</div>
+              <div className="mono-font font-bold text-lg">{opt.odd.toFixed(2)}</div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -802,7 +803,7 @@ function FeaturedSkeleton() {
   );
 }
 
-function FeaturedMatches({ setSelectedMatch, matchesData }) {
+function FeaturedMatches({ matchesData, betSlip }) {
   const featured = useMemo(() => {
     const live = matchesData.matches.filter((m) => m.isLive);
     const upcoming = matchesData.matches.filter((m) => !m.isLive);
@@ -830,7 +831,7 @@ function FeaturedMatches({ setSelectedMatch, matchesData }) {
       {matchesData.status === "ok" && featured.length > 0 && (
         <div className="grid gap-5 md:grid-cols-2">
           {featured.map((match, i) => (
-            <FeaturedMatchCard key={match.id} match={match} onClick={() => setSelectedMatch(match)} delay={i * 0.08} />
+            <FeaturedMatchCard key={match.id} match={match} betSlip={betSlip} delay={i * 0.08} />
           ))}
         </div>
       )}
@@ -858,11 +859,22 @@ function MatchGridSkeleton() {
   );
 }
 
-function FeaturedMatchCard({ match, onClick, delay }) {
+function FeaturedMatchCard({ match, betSlip, delay }) {
+  const handleAdd = (opt) => {
+    betSlip.addSelection({
+      id: `${match.id}-${opt.label}`,
+      matchId: match.id,
+      matchName: `${match.home_team} - ${match.away_team}`,
+      league: getLeagueName(match.sport_key),
+      selection: opt.label === "Thuis" ? match.home_team : opt.label === "Uit" ? match.away_team : "Gelijkspel",
+      odd: opt.odd,
+    });
+  };
+  const isInSlip = (label) => betSlip.selections.some((s) => s.id === `${match.id}-${label}`);
+
   return (
     <div
-      onClick={onClick}
-      className="group relative bg-zinc-900/40 hover:bg-zinc-900/70 border border-zinc-800 hover:border-zinc-700 rounded-xl p-5 cursor-pointer transition animate-fade-up"
+      className="group relative bg-zinc-900/40 border border-zinc-800 rounded-xl p-5 transition animate-fade-up"
       style={{ animationDelay: `${delay}s` }}
     >
       <div className="relative">
@@ -889,23 +901,30 @@ function FeaturedMatchCard({ match, onClick, delay }) {
         </div>
 
         <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${match.options.length}, 1fr)` }}>
-          {match.options.map((opt, i) => (
-            <button
-              key={i}
-              onClick={(e) => { e.stopPropagation(); onClick(); }}
-              className="group/odd p-3 bg-zinc-950 hover:bg-cyan-400 hover:text-zinc-950 border border-zinc-800 hover:border-cyan-400 rounded-lg transition text-left"
-            >
-              <div className="text-[11px] text-zinc-500 group-hover/odd:text-zinc-900 truncate transition">{opt.label}</div>
-              <div className="mono-font font-bold text-lg">{opt.odd.toFixed(2)}</div>
-            </button>
-          ))}
+          {match.options.map((opt, i) => {
+            const selected = isInSlip(opt.label);
+            return (
+              <button
+                key={i}
+                onClick={() => handleAdd(opt)}
+                className={`p-3 rounded-lg border transition text-left ${
+                  selected
+                    ? "bg-cyan-400 text-zinc-950 border-cyan-400"
+                    : "bg-zinc-950 hover:bg-cyan-400 hover:text-zinc-950 border-zinc-800 hover:border-cyan-400"
+                }`}
+              >
+                <div className={`text-[11px] truncate ${selected ? "text-zinc-700" : "text-zinc-500 group-hover:text-zinc-500"}`}>{opt.label}</div>
+                <div className="mono-font font-bold text-lg">{opt.odd.toFixed(2)}</div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
 
-function UpcomingSection({ setSelectedMatch, matchesData }) {
+function UpcomingSection({ matchesData, betSlip }) {
   const upcoming = useMemo(() => matchesData.matches.filter((m) => !m.isLive).slice(0, 8), [matchesData.matches]);
   if (matchesData.status !== "ok" || upcoming.length === 0) return null;
   return (
@@ -923,7 +942,7 @@ function UpcomingSection({ setSelectedMatch, matchesData }) {
       <div className="bg-zinc-900/30 border border-zinc-800 rounded-xl overflow-hidden">
         <div className="divide-y divide-zinc-800">
           {upcoming.map((m) => (
-            <QuickMatchRow key={m.id} match={m} onClick={() => setSelectedMatch(m)} />
+            <QuickMatchRow key={m.id} match={m} betSlip={betSlip} />
           ))}
         </div>
       </div>
@@ -931,63 +950,51 @@ function UpcomingSection({ setSelectedMatch, matchesData }) {
   );
 }
 
-function QuickMatchRow({ match, onClick }) {
+function QuickMatchRow({ match, betSlip }) {
+  const handleAdd = (opt) => {
+    betSlip.addSelection({
+      id: `${match.id}-${opt.label}`,
+      matchId: match.id,
+      matchName: `${match.home_team} - ${match.away_team}`,
+      league: getLeagueName(match.sport_key),
+      selection: opt.label === "Thuis" ? match.home_team : opt.label === "Uit" ? match.away_team : "Gelijkspel",
+      odd: opt.odd,
+    });
+  };
+  const isInSlip = (label) => betSlip.selections.some((s) => s.id === `${match.id}-${label}`);
+
   return (
-    <div onClick={onClick} className="group flex items-center gap-3 p-4 hover:bg-zinc-900/50 cursor-pointer transition">
+    <div className="flex items-center gap-3 p-4 transition">
       <div className="shrink-0 px-2 py-1 bg-zinc-950 border border-zinc-800 rounded text-[10px] mono-font text-cyan-400 tracking-wider truncate max-w-[100px]">
         {getLeagueName(match.sport_key).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="font-semibold truncate group-hover:text-cyan-300 transition">{match.home_team} - {match.away_team}</div>
+        <div className="font-semibold truncate">{match.home_team} - {match.away_team}</div>
         <div className="text-xs text-zinc-500 mono-font">{fmtMatchTime(match.commence_time)}</div>
       </div>
-      <div className="hidden sm:flex items-center gap-2 shrink-0">
-        {match.options.map((opt, i) => (
-          <div key={i} className="px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded mono-font text-sm font-semibold min-w-[3rem] text-center group-hover:border-cyan-400/50 transition">
-            {opt.odd.toFixed(2)}
-          </div>
-        ))}
+      <div className="flex items-center gap-2 shrink-0">
+        {match.options.map((opt, i) => {
+          const selected = isInSlip(opt.label);
+          return (
+            <button
+              key={i}
+              onClick={() => handleAdd(opt)}
+              className={`px-3 py-1.5 border rounded mono-font text-sm font-semibold min-w-[3rem] text-center transition ${
+                selected
+                  ? "bg-cyan-400 text-zinc-950 border-cyan-400"
+                  : "bg-zinc-950 border-zinc-800 hover:border-cyan-400 hover:bg-cyan-400/10"
+              }`}
+            >
+              {opt.odd.toFixed(2)}
+            </button>
+          );
+        })}
       </div>
-      <ChevronRight size={16} className="text-zinc-600 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition shrink-0" />
     </div>
   );
 }
 
-function TrustSection() {
-  const features = [
-    { icon: <Shield size={24} />, title: "Veilig & beveiligd", desc: "Versleutelde transacties en strikte privacybescherming volgens de hoogste industriestandaarden." },
-    { icon: <Zap size={24} />, title: "Snelle uitbetalingen", desc: "Winsten worden binnen enkele minuten na afloop van de wedstrijd op je account bijgeschreven." },
-    { icon: <Headphones size={24} />, title: "24/7 ondersteuning", desc: "Onze klantenservice staat dag en nacht voor je klaar via live chat en e-mail." },
-    { icon: <CreditCard size={24} />, title: "Flexibele betaalmethoden", desc: "Stort en neem op via iDEAL, creditcard, bankoverschrijving of populaire e-wallets." },
-  ];
-  return (
-    <section className="border-y border-zinc-800 bg-zinc-900/20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-cyan-400/10 border border-cyan-400/30 rounded-full mb-4">
-            <Lock size={12} className="text-cyan-400" />
-            <span className="text-xs mono-font text-cyan-400 tracking-wider">WAAROM INSELBET</span>
-          </div>
-          <h2 className="display-font text-4xl sm:text-5xl mb-3">DE PROFESSIONELE STANDAARD</h2>
-        </div>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {features.map((f, i) => (
-            <div key={i} className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 transition">
-              <div className="w-12 h-12 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center text-cyan-400 mb-4">
-                {f.icon}
-              </div>
-              <h3 className="font-bold text-lg mb-2">{f.title}</h3>
-              <p className="text-sm text-zinc-400 leading-relaxed">{f.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MatchesPage({ setSelectedMatch, matchesData }) {
+function MatchesPage({ matchesData, betSlip }) {
   const [filter, setFilter] = useState("alle");
   const leagues = useMemo(() => {
     const s = new Set(matchesData.matches.map((m) => m.sport_key));
@@ -1002,26 +1009,28 @@ function MatchesPage({ setSelectedMatch, matchesData }) {
       <div className="mb-8 flex items-end justify-between">
         <div>
           <h1 className="display-font text-5xl sm:text-6xl">SPORTMARKTEN</h1>
-          <p className="text-zinc-500 mt-2">Alle Europese top divisies en clubcompetities.</p>
+          <p className="text-zinc-500 mt-2">Alle beschikbare wedstrijden en odds.</p>
         </div>
         <button onClick={matchesData.refresh} className="hidden sm:flex items-center gap-2 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-md text-sm transition">
           <RefreshCw size={14} className={matchesData.status === "loading" ? "animate-spin" : ""} /> Verversen
         </button>
       </div>
 
-      <div className="flex gap-2 mb-6 -mx-1 px-1 overflow-x-auto pb-1">
-        <button
-          onClick={() => setFilter("alle")}
-          className={`shrink-0 px-4 py-2 rounded-md text-sm font-semibold transition ${filter === "alle" ? "bg-cyan-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800"}`}
-        >Alle competities</button>
-        {leagues.map((sport) => (
+      {leagues.length > 1 && (
+        <div className="flex gap-2 mb-6 -mx-1 px-1 overflow-x-auto pb-1">
           <button
-            key={sport}
-            onClick={() => setFilter(sport)}
-            className={`shrink-0 px-4 py-2 rounded-md text-sm font-semibold transition ${filter === sport ? "bg-cyan-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800"}`}
-          >{getLeagueName(sport)}</button>
-        ))}
-      </div>
+            onClick={() => setFilter("alle")}
+            className={`shrink-0 px-4 py-2 rounded-md text-sm font-semibold transition ${filter === "alle" ? "bg-cyan-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800"}`}
+          >Alle competities</button>
+          {leagues.map((sport) => (
+            <button
+              key={sport}
+              onClick={() => setFilter(sport)}
+              className={`shrink-0 px-4 py-2 rounded-md text-sm font-semibold transition ${filter === sport ? "bg-cyan-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800"}`}
+            >{getLeagueName(sport)}</button>
+          ))}
+        </div>
+      )}
 
       {matchesData.status === "loading" && <MatchGridSkeleton />}
       {matchesData.status === "ok" && filtered.length === 0 && (
@@ -1032,7 +1041,7 @@ function MatchesPage({ setSelectedMatch, matchesData }) {
       {matchesData.status === "ok" && filtered.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2">
           {filtered.map((match, i) => (
-            <FeaturedMatchCard key={match.id} match={match} onClick={() => setSelectedMatch(match)} delay={Math.min(i * 0.04, 0.4)} />
+            <FeaturedMatchCard key={match.id} match={match} betSlip={betSlip} delay={Math.min(i * 0.04, 0.4)} />
           ))}
         </div>
       )}
@@ -1040,7 +1049,7 @@ function MatchesPage({ setSelectedMatch, matchesData }) {
   );
 }
 
-function LivePage({ setSelectedMatch, matchesData }) {
+function LivePage({ matchesData, betSlip }) {
   const live = useMemo(() => matchesData.matches.filter((m) => m.isLive), [matchesData.matches]);
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
@@ -1067,7 +1076,7 @@ function LivePage({ setSelectedMatch, matchesData }) {
       )}
       {matchesData.status === "ok" && live.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2">
-          {live.map((match, i) => <FeaturedMatchCard key={match.id} match={match} onClick={() => setSelectedMatch(match)} delay={i * 0.05} />)}
+          {live.map((match, i) => <FeaturedMatchCard key={match.id} match={match} betSlip={betSlip} delay={i * 0.05} />)}
         </div>
       )}
     </section>
@@ -1087,6 +1096,182 @@ function MyBetsPage() {
         <p className="text-sm text-zinc-500">Plaats je eerste weddenschap bij de wedstrijden.</p>
       </div>
     </section>
+  );
+}
+
+// ============================================================
+// BET SLIP — popup rechtsonder met multiplier
+// ============================================================
+function BetSlip({ betSlip, user, refreshUser }) {
+  const [open, setOpen] = useState(false);
+  const [stake, setStake] = useState("");
+  const [placedFlash, setPlacedFlash] = useState(false);
+
+  const { selections, removeSelection, clearSlip, totalOdd } = betSlip;
+  const count = selections.length;
+  const stakeNum = parseFloat(stake) || 0;
+  const potential = stakeNum * totalOdd;
+
+  // Auto-open bij eerste selectie
+  useEffect(() => {
+    if (count > 0 && !open) {
+      setOpen(true);
+    }
+    if (count === 0) {
+      setStake("");
+    }
+  }, [count]); // eslint-disable-line
+
+  const handlePlace = () => {
+    if (stakeNum <= 0) return;
+    if (stakeNum > user.balance) {
+      alert("Niet genoeg saldo");
+      return;
+    }
+    setPlacedFlash(true);
+    setTimeout(() => {
+      alert(`Weddenschap geplaatst!\n${count} selectie${count > 1 ? "s" : ""}\nInzet: ${fmtMoney(stakeNum)}\nQuote: ${totalOdd.toFixed(2)}\nMogelijke uitbetaling: ${fmtMoney(potential)}`);
+      clearSlip();
+      setStake("");
+      setPlacedFlash(false);
+    }, 300);
+  };
+
+  if (count === 0) return null;
+
+  return (
+    <>
+      {/* Floating button als bet slip dicht is */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-3 bg-cyan-400 hover:bg-cyan-300 text-zinc-950 font-bold rounded-full shadow-2xl shadow-cyan-500/30 transition animate-pop"
+        >
+          <Receipt size={18} />
+          <span>Bet slip</span>
+          <div className="bg-zinc-950 text-cyan-400 mono-font text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">{count}</div>
+        </button>
+      )}
+
+      {/* Bet slip popup */}
+      {open && (
+        <div className="fixed bottom-0 right-0 sm:bottom-4 sm:right-4 z-50 w-full sm:w-96 max-h-[85vh] flex flex-col animate-slide-up">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-t-2xl sm:rounded-2xl shadow-2xl shadow-black/50 overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-gradient-to-r from-cyan-400/10 to-transparent">
+              <div className="flex items-center gap-2">
+                <Receipt size={18} className="text-cyan-400" />
+                <span className="font-bold">Bet slip</span>
+                <div className="bg-cyan-400 text-zinc-950 mono-font text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{count}</div>
+              </div>
+              <div className="flex items-center gap-1">
+                {count > 0 && (
+                  <button
+                    onClick={clearSlip}
+                    className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded transition"
+                    title="Leegmaken"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+                <button
+                  onClick={() => setOpen(false)}
+                  className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded transition"
+                >
+                  <ChevronDown size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Selections */}
+            <div className="flex-1 overflow-y-auto max-h-[40vh]">
+              {selections.map((sel) => (
+                <div key={sel.id} className="p-3 border-b border-zinc-800 hover:bg-zinc-800/30 transition">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="text-[10px] mono-font text-cyan-400 tracking-wider truncate">{sel.league.toUpperCase()}</div>
+                    <button
+                      onClick={() => removeSelection(sel.id)}
+                      className="text-zinc-500 hover:text-red-400 shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="text-xs text-zinc-500 mb-1 truncate">{sel.matchName}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold text-sm truncate">{sel.selection}</div>
+                    <div className="mono-font font-bold text-cyan-400 ml-2 shrink-0">{sel.odd.toFixed(2)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Multiplier info */}
+            {count >= 2 && (
+              <div className="px-4 py-2 bg-cyan-400/5 border-t border-cyan-400/20 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Zap size={14} className="text-cyan-400" />
+                  <span className="text-xs mono-font text-cyan-400 tracking-wider">{count}x COMBI</span>
+                </div>
+                <div className="text-xs text-zinc-400">Odds vermenigvuldigd</div>
+              </div>
+            )}
+
+            {/* Stake + total */}
+            <div className="p-4 border-t border-zinc-800 bg-zinc-950/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs mono-font text-zinc-500 tracking-wider">TOTALE QUOTE</span>
+                <span className="display-font text-2xl text-cyan-400">{totalOdd.toFixed(2)}</span>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={stake}
+                  onChange={(e) => setStake(e.target.value)}
+                  placeholder="Inzet €"
+                  className="flex-1 px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-md mono-font text-base focus:border-cyan-400 focus:outline-none"
+                />
+                <button
+                  onClick={() => setStake(String(Math.floor(user.balance)))}
+                  className="px-3 bg-zinc-800 hover:bg-zinc-700 rounded-md text-xs mono-font font-bold"
+                  disabled={user.balance <= 0}
+                >MAX</button>
+              </div>
+
+              <div className="flex gap-1.5">
+                {[5, 10, 25, 50, 100].map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setStake(String(v))}
+                    className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded text-[11px] mono-font transition"
+                  >€{v}</button>
+                ))}
+              </div>
+
+              {stakeNum > 0 && (
+                <div className="flex items-center justify-between p-3 bg-cyan-400/10 border border-cyan-400/30 rounded-md">
+                  <span className="text-sm font-semibold">Mogelijke uitbetaling:</span>
+                  <span className="mono-font font-bold text-cyan-400 text-lg">{fmtMoney(potential)}</span>
+                </div>
+              )}
+
+              <button
+                onClick={handlePlace}
+                disabled={stakeNum <= 0 || stakeNum > user.balance || placedFlash}
+                className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-950 font-bold rounded-md transition shadow-lg shadow-cyan-500/20"
+              >
+                {stakeNum > user.balance ? "ONVOLDOENDE SALDO" : `PLAATS WEDDENSCHAP · ${fmtMoney(stakeNum)}`}
+              </button>
+
+              <div className="flex items-center justify-between text-xs text-zinc-500">
+                <span>Saldo:</span>
+                <span className="mono-font text-cyan-400 font-bold">{fmtMoney(user.balance)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1145,7 +1330,6 @@ function AdminPage({ refreshCurrentUser, currentUser }) {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <StatCard label="GEBRUIKERS" value={users.length} accent="cyan" />
         <StatCard label="TOTAAL SALDO" value={fmtMoney(totalBalance)} accent="emerald" mono />
@@ -1153,7 +1337,6 @@ function AdminPage({ refreshCurrentUser, currentUser }) {
         <StatCard label="GEBLOKKEERD" value={bannedCount} accent="red" />
       </div>
 
-      {/* Search */}
       <div className="relative mb-4">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
         <input
@@ -1165,7 +1348,6 @@ function AdminPage({ refreshCurrentUser, currentUser }) {
         />
       </div>
 
-      {/* Users list */}
       {status === "loading" && (
         <div className="text-center py-12 text-zinc-500"><Loader2 className="animate-spin mx-auto mb-2" size={24} />Laden...</div>
       )}
@@ -1191,9 +1373,8 @@ function AdminPage({ refreshCurrentUser, currentUser }) {
         </div>
       )}
 
-      {/* Toast */}
       {toast && (
-        <div className="fixed bottom-4 right-4 z-50">
+        <div className="fixed bottom-4 left-4 z-50">
           <div className={`px-4 py-3 rounded-lg shadow-2xl border backdrop-blur-xl ${
             toast.type === "success" ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" :
             "bg-red-500/20 border-red-500/40 text-red-300"
@@ -1328,204 +1509,20 @@ function UserRow({ user, currentUserId, onUpdate, showToast, refreshCurrentUser 
   );
 }
 
-// ============================================================
-// BET MODAL
-// ============================================================
-function BetModal({ match, onClose }) {
-  const [selectedMarket, setSelectedMarket] = useState("h2h");
-  const [selected, setSelected] = useState(null);
-  const [stake, setStake] = useState("");
-  const [details, setDetails] = useState(null);
-  const [detailsStatus, setDetailsStatus] = useState("loading");
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setDetailsStatus("loading");
-      try {
-        const res = await fetch(`${API_BASE}/api/event/${match.sport_key}/${match.id}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (!cancelled) { setDetails(json); setDetailsStatus("ok"); }
-      } catch { if (!cancelled) setDetailsStatus("error"); }
-    })();
-    return () => { cancelled = true; };
-  }, [match.id, match.sport_key]);
-
-  const markets = useMemo(() => {
-    if (!details?.bookmakers) return [];
-    const map = {};
-    for (const bm of details.bookmakers) {
-      for (const market of bm.markets || []) {
-        if (!map[market.key]) map[market.key] = { key: market.key, outcomes: {} };
-        for (const oc of market.outcomes || []) {
-          const ocKey = oc.name + (oc.point !== undefined ? `_${oc.point}` : "");
-          const existing = map[market.key].outcomes[ocKey];
-          if (!existing || oc.price > existing.odd) {
-            map[market.key].outcomes[ocKey] = { name: oc.name, point: oc.point, odd: oc.price, bookmaker: bm.title };
-          }
-        }
-      }
-    }
-    return Object.values(map).map((m) => ({ ...m, outcomes: Object.values(m.outcomes) }));
-  }, [details]);
-
-  const marketLabel = (key) => ({
-    h2h: "Wedstrijdwinnaar (1X2)", h2h_3_way: "Wedstrijdwinnaar (3-weg)",
-    spreads: "Handicap", totals: "Over / Under",
-    btts: "Beide ploegen scoren", draw_no_bet: "Draw No Bet",
-  }[key] || key);
-
-  const outcomeLabel = (oc, marketKey) => {
-    if (marketKey === "totals") return `${oc.name === "Over" ? "Boven" : "Onder"} ${oc.point}`;
-    if (marketKey === "spreads") {
-      const sign = oc.point > 0 ? "+" : "";
-      return `${oc.name} (${sign}${oc.point})`;
-    }
-    if (oc.name === "Draw") return "Gelijkspel";
-    return oc.name;
-  };
-
-  const stakeNum = parseFloat(stake) || 0;
-  const odd = selected?.odd || 0;
-  const potential = stakeNum * odd;
-  const currentMarket = markets.find((m) => m.key === selectedMarket);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-800 rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 bg-zinc-900 border-b border-zinc-800 p-4 flex items-center justify-between z-10">
-          <div className="min-w-0">
-            <div className="text-xs mono-font text-cyan-400 tracking-wider truncate">{getLeagueName(match.sport_key).toUpperCase()}</div>
-            <div className="font-bold truncate">{match.home_team} <span className="text-zinc-500">vs</span> {match.away_team}</div>
-            <div className="text-xs text-zinc-500 mt-0.5">{fmtMatchTime(match.commence_time)}</div>
-          </div>
-          <button onClick={onClose} className="p-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition shrink-0">✕</button>
-        </div>
-
-        <div className="p-5 space-y-4">
-          {detailsStatus === "loading" && (
-            <div className="py-12 flex items-center justify-center text-zinc-500"><Loader2 className="animate-spin mr-2" size={18} /> Markten laden...</div>
-          )}
-          {detailsStatus === "error" && (
-            <div className="py-8 text-center"><AlertCircle className="mx-auto text-red-400 mb-2" size={24} /><p className="text-sm text-zinc-400">Kon markten niet laden.</p></div>
-          )}
-          {detailsStatus === "ok" && markets.length === 0 && (
-            <div className="py-8 text-center text-zinc-500 text-sm">Geen markten beschikbaar.</div>
-          )}
-          {detailsStatus === "ok" && markets.length > 0 && (
-            <>
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                {markets.map((m) => (
-                  <button
-                    key={m.key}
-                    onClick={() => { setSelectedMarket(m.key); setSelected(null); }}
-                    className={`shrink-0 px-3 py-1.5 rounded-md text-xs font-semibold transition ${selectedMarket === m.key ? "bg-cyan-400 text-zinc-950" : "bg-zinc-950 text-zinc-400 hover:text-zinc-100 border border-zinc-800"}`}
-                  >{marketLabel(m.key)}</button>
-                ))}
-              </div>
-
-              {currentMarket && (
-                <>
-                  <div className="text-xs mono-font text-zinc-500 tracking-wider">SELECTEER UITKOMST</div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {currentMarket.outcomes.map((oc, i) => {
-                      const ocId = oc.name + (oc.point ?? "");
-                      const isSelected = selected?.id === ocId && selected?.marketKey === currentMarket.key;
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => setSelected({ id: ocId, marketKey: currentMarket.key, name: outcomeLabel(oc, currentMarket.key), odd: oc.odd })}
-                          className={`p-3 rounded-md border transition text-left flex items-center justify-between ${isSelected ? "bg-cyan-400 text-zinc-950 border-cyan-400" : "bg-zinc-950 border-zinc-800 hover:border-zinc-700"}`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium truncate">{outcomeLabel(oc, currentMarket.key)}</div>
-                            <div className={`text-[10px] mono-font ${isSelected ? "text-zinc-700" : "text-zinc-500"}`}>{oc.bookmaker}</div>
-                          </div>
-                          <div className="mono-font font-bold text-lg ml-3 shrink-0">{oc.odd.toFixed(2)}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-
-              {selected && (
-                <div className="space-y-3 pt-4 border-t border-zinc-800 animate-fade-up">
-                  <div className="bg-zinc-950 border border-zinc-800 rounded-md p-3">
-                    <div className="text-[10px] mono-font text-zinc-500 tracking-wider">JE SELECTIE</div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="font-semibold">{selected.name}</span>
-                      <span className="mono-font font-bold text-cyan-400">{selected.odd.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  <label className="block text-xs mono-font text-zinc-500 tracking-wider">INZET</label>
-                  <div className="flex gap-2">
-                    <input type="number" value={stake} onChange={(e) => setStake(e.target.value)} placeholder="0" className="flex-1 px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-md mono-font text-lg focus:border-cyan-400 focus:outline-none" />
-                    <button onClick={() => setStake("10")} className="px-3 bg-zinc-800 hover:bg-zinc-700 rounded-md text-xs mono-font">€10</button>
-                    <button onClick={() => setStake("50")} className="px-3 bg-zinc-800 hover:bg-zinc-700 rounded-md text-xs mono-font">€50</button>
-                  </div>
-
-                  {stakeNum > 0 && (
-                    <div className="bg-cyan-400/5 border border-cyan-400/20 rounded-md p-4 space-y-2">
-                      <div className="flex justify-between text-sm"><span className="text-zinc-400">Inzet:</span><span className="mono-font">{fmtMoney(stakeNum)}</span></div>
-                      <div className="flex justify-between text-sm"><span className="text-zinc-400">Quote:</span><span className="mono-font">{odd.toFixed(2)}</span></div>
-                      <div className="flex justify-between pt-2 border-t border-cyan-400/20"><span className="font-semibold">Potentiële uitbetaling:</span><span className="mono-font text-cyan-400 font-bold text-lg">{fmtMoney(potential)}</span></div>
-                    </div>
-                  )}
-
-                  <button
-                    disabled={stakeNum <= 0}
-                    onClick={() => { alert(`Weddenschap geplaatst: ${fmtMoney(stakeNum)} op "${selected.name}"`); onClose(); }}
-                    className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-950 font-bold rounded-md transition shadow-lg shadow-cyan-500/20"
-                  >PLAATS WEDDENSCHAP</button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Footer() {
   return (
     <footer className="border-t border-zinc-800 mt-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-md flex items-center justify-center">
-                <Trophy size={14} className="text-zinc-950" strokeWidth={2.5} />
-              </div>
-              <span className="display-font text-xl text-cyan-400">INSELBET</span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-md flex items-center justify-center">
+              <Trophy size={14} className="text-zinc-950" strokeWidth={2.5} />
             </div>
-            <p className="text-sm text-zinc-500 leading-relaxed">
-              Toonaangevend platform voor online sportweddenschappen.
-            </p>
+            <span className="display-font text-xl text-cyan-400">INSELBET</span>
           </div>
-          <FooterColumn title="Sport" items={["Premier League", "Bundesliga", "La Liga", "Champions League"]} />
-          <FooterColumn title="Account" items={["Mijn weddenschappen", "Geschiedenis"]} />
-          <FooterColumn title="Ondersteuning" items={["Help center", "Contact", "Verantwoord spelen"]} />
-        </div>
-        <div className="pt-6 border-t border-zinc-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <p className="text-xs mono-font text-zinc-600">© 2026 INSELBET · ALLE RECHTEN VOORBEHOUDEN</p>
-          <p className="text-xs mono-font text-zinc-600">Speel bewust. 18+</p>
+          <p className="text-xs mono-font text-zinc-600">© 2026 INSELBET</p>
         </div>
       </div>
     </footer>
-  );
-}
-
-function FooterColumn({ title, items }) {
-  return (
-    <div>
-      <div className="text-xs mono-font text-zinc-400 tracking-widest mb-3">{title.toUpperCase()}</div>
-      <ul className="space-y-2">
-        {items.map(item => <li key={item}><a href="#" className="text-sm text-zinc-500 hover:text-cyan-400 transition">{item}</a></li>)}
-      </ul>
-    </div>
   );
 }
